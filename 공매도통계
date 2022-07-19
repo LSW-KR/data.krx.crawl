@@ -1,0 +1,182 @@
+import time
+import schedule
+import pandas as pd
+import datetime
+import mariadb
+from selenium import webdriver as wd 
+from selenium.webdriver.common.by import By
+import telepot 
+
+from selenium.webdriver.support.ui import Select
+
+
+
+mc = -796682698
+token = "5479844668:AAHGlOs3AGR-mStrLJx_IUxQpH7bUSfH3Os"
+bot = telepot.Bot(token)
+info = bot.getMe()
+
+
+def crawl():
+
+    while datetime.datetime.today().weekday() == 0 or datetime.datetime.today().weekday() < 5 :
+
+        if datetime.datetime.today().weekday() != 0 :
+            t_dt = datetime.datetime.today() - datetime.timedelta(days = 1)
+        else:
+            t_dt = datetime.datetime.today() - datetime.timedelta(days = 3)
+
+        t_date = t_dt.strftime("%d")
+
+        option = wd.ChromeOptions()
+        option.add_argument("start-maximized")
+        option.add_experimental_option("prefs", {"profile.default_content_setting_values.notifications": 1})
+        driver = wd.Chrome(chrome_options=option, executable_path='chromedriver.exe')
+        url = "http://data.krx.co.kr/contents/MMC/SRTS/srts/MMCSRTS007.cmd"
+        driver.get(url)
+        time.sleep(1)
+        select = Select(driver.find_element_by_xpath('/html/body/div[3]/div[3]/div/div/div[1]/div[2]/form/dl/dd/div/div/div/select'))
+        select.select_by_value('1D')
+        time.sleep(1)
+        driver.find_element_by_xpath('/html/body/div[3]/div[3]/div/div/div[1]/div[2]/form/dl/dd/div/div/input[3]').click()
+        try:
+            driver.find_element_by_link_text(t_date).click()
+        except:
+            try: 
+                t_date = t_date - 2
+                driver.find_element_by_link_text(t_date).click()
+
+            except:
+                pass
+        
+        time.sleep(1)
+        driver.find_element_by_xpath('/html/body/div[5]/div[2]/button').click()
+        time.sleep(1)
+
+
+        time.sleep(1)
+        driver.find_element_by_xpath('/html/body/div[3]/div[3]/div/div/div[1]/div[2]/button[1]').click()
+        time.sleep(2)
+
+        cat = driver.find_elements_by_class_name('tui-grid-cell-content')
+        cat_list = []
+        for i in cat:
+            i = i.text
+    
+            if i.find('유형') == 0:
+                cat_list.append(i)
+
+        driver.implicitly_wait(3)     
+
+        temp_list2 = []
+
+        try:
+            for i in range(1,15):
+
+                std_dt = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[1]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[1]/span').text
+                std_dt = datetime.datetime.strptime(std_dt,"%y/%m/%d").date().strftime("%Y%m%d")
+
+                
+                name   = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[1]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[2]/div').text
+        
+                
+                market = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[2]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[1]/div').text
+
+            
+                s_dt = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[2]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[2]/span').text
+                s_dt = datetime.datetime.strptime(s_dt,"%y/%m/%d").date().strftime("%Y%m%d")
+
+
+                e_dt = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[2]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[2]/span').text
+                e_dt = datetime.datetime.strptime(e_dt,"%y/%m/%d").date().strftime("%Y%m%d")
+
+                temp_list2.append([std_dt,name,market,s_dt,e_dt])
+
+        except:
+            pass
+        
+
+        df = pd.DataFrame(temp_list2, columns = ['std_dt','name','market','s_dt','e_dt',])
+        df['cat'] = cat_list
+        display(df)
+
+        driver.close()
+        return df
+
+def que_sql(sql,conn,df2):
+    #try:
+        data = list(df2. itertuples(index = False, name= None))
+        cs = conn.cursor()
+        cs.executemany(sql, data)
+        conn.commit()
+    #except:
+    #    print("que_sql()error")
+        
+def make_sql():
+    try:
+        sql = """
+        INSERT INTO stock_daily.krx_data  (
+            std_dt,
+            name,
+            market,
+            s_dt,
+            e_dt,
+            cat
+        ) VALUES (
+            ?, ?, ?,
+            ?, ?, ?
+        )
+        """
+        return sql
+    except:
+        print("make_sql()error")
+
+def db_connect():
+    try:
+        conn = mariadb.connect(
+        user='eBEST_MS', 
+        password='eBEST_MS1!', 
+        database='stock_daily', 
+        host='221.147.71.66',
+        port=9926)
+        return conn
+    except:
+        print("db_connect()error")
+
+def bot_msg(df):
+
+    head = f'< 공매도 통계 >\n'
+    list_tmp = []
+    list_tmp.append(head)
+    for i in range(0,15):
+        try:
+            v1 = df.iloc[i]['std_dt']
+            v2 = df.iloc[i]['name']
+            v3 = df.iloc[i]['market']
+            v4 = df.iloc[i]['s_dt']
+            v5 = df.iloc[i]['e_dt']
+            v6 = df.iloc[i]['cat']
+            mes = f'\n종목명: {v2}\n적출일: {v1}           시장구분:{v3}\n거래제한일: {v4}~{v5}\n지정유형: {v6}\n' 
+            list_tmp.append(mes)
+        except:
+            mes = f'데이터가 없습니다.' 
+    list_tmp.append(mes)
+
+    
+   
+    bot.sendMessage(chat_id = mc , text =''.join(list_tmp))
+
+def setting():
+    df = crawl()
+    display(df)
+    bot_msg(df)
+    #que_sql(make_sql(),db_connect(),df)
+
+
+if __name__ == "__main__":
+	schedule.every().day.at('07:30').do(setting)
+
+
+	while True:
+		schedule.run_pending()
+		time.sleep(1)
