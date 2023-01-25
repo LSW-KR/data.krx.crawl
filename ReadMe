@@ -12,3 +12,4 @@
     
 Note: The script uses a class name and xpath to locate and extract the elements.
       This script also uses an external chrome driver and this script has some logic to handle specific situations like when a specific date is not available.
+"""
