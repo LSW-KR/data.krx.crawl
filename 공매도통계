@@ -5,27 +5,24 @@ import datetime
 import mariadb
 from selenium import webdriver as wd 
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
 import telepot 
 
-from selenium.webdriver.support.ui import Select
 
-
-#Insert mc and token number
-mc = -###########
+#Telegram mc and token number setting 
+mc = "###########"
 token = "###########################"
 bot = telepot.Bot(token)
 info = bot.getMe()
 
-
+#Crawling data
 def crawl():
-
+    #Formating date for crawling
     while datetime.datetime.today().weekday() == 0 or datetime.datetime.today().weekday() < 5 :
-
         if datetime.datetime.today().weekday() != 0 :
             t_dt = datetime.datetime.today() - datetime.timedelta(days = 1)
         else:
             t_dt = datetime.datetime.today() - datetime.timedelta(days = 3)
-
         t_date = t_dt.strftime("%d")
 
         option = wd.ChromeOptions()
@@ -45,73 +42,59 @@ def crawl():
             try: 
                 t_date = t_date - 2
                 driver.find_element_by_link_text(t_date).click()
-
             except:
-                pass
-        
+                pass        
         time.sleep(1)
         driver.find_element_by_xpath('/html/body/div[5]/div[2]/button').click()
         time.sleep(1)
-
-
         time.sleep(1)
         driver.find_element_by_xpath('/html/body/div[3]/div[3]/div/div/div[1]/div[2]/button[1]').click()
         time.sleep(2)
-
         cat = driver.find_elements_by_class_name('tui-grid-cell-content')
         cat_list = []
         for i in cat:
             i = i.text
-    
             if i.find('유형') == 0:
                 cat_list.append(i)
-
         driver.implicitly_wait(3)     
-
         temp_list2 = []
-
         try:
             for i in range(1,15):
 
                 std_dt = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[1]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[1]/span').text
                 std_dt = datetime.datetime.strptime(std_dt,"%y/%m/%d").date().strftime("%Y%m%d")
-
-                
+		
                 name   = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[1]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[2]/div').text
-        
-                
+		
                 market = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[2]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[1]/div').text
-
-            
+    
                 s_dt = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[2]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[2]/span').text
                 s_dt = datetime.datetime.strptime(s_dt,"%y/%m/%d").date().strftime("%Y%m%d")
-
 
                 e_dt = driver.find_element(by=By.XPATH, value = f'/html/body/div[3]/div[3]/div/div/div[2]/div[2]/div/div[1]/div[2]/div[2]/div/div[1]/table/tbody/tr[{i}]/td[2]/span').text
                 e_dt = datetime.datetime.strptime(e_dt,"%y/%m/%d").date().strftime("%Y%m%d")
 
                 temp_list2.append([std_dt,name,market,s_dt,e_dt])
-
         except:
             pass
-        
-
+	#Create Dataframe
         df = pd.DataFrame(temp_list2, columns = ['std_dt','name','market','s_dt','e_dt',])
         df['cat'] = cat_list
-        display(df)
-
         driver.close()
-        return df
-
+        
+	return df
+	
+#Que SQL
 def que_sql(sql,conn,df2):
-    #try:
+    try:
         data = list(df2. itertuples(index = False, name= None))
         cs = conn.cursor()
         cs.executemany(sql, data)
         conn.commit()
-    #except:
-    #    print("que_sql()error")
-        
+    except:
+    	print("que_sql()error")
+
+#Create SQL Table
 def make_sql():
     try:
         sql = """
@@ -131,7 +114,7 @@ def make_sql():
     except:
         print("make_sql()error")
 
-#Insert info
+#Insert Database Info
 def db_connect():
     try:
         conn = mariadb.connect(
@@ -144,8 +127,8 @@ def db_connect():
     except:
         print("db_connect()error")
 
+#Telegram bot chatting format
 def bot_msg(df):
-
     head = f'< 공매도 통계 >\n'
     list_tmp = []
     list_tmp.append(head)
@@ -162,22 +145,18 @@ def bot_msg(df):
         except:
             mes = f'데이터가 없습니다.' 
     list_tmp.append(mes)
-
-    
-   
     bot.sendMessage(chat_id = mc , text =''.join(list_tmp))
 
+#Run functions
 def setting():
     df = crawl()
     display(df)
     bot_msg(df)
     #que_sql(make_sql(),db_connect(),df)
 
-
+#Schedule auto run
 if __name__ == "__main__":
 	schedule.every().day.at('07:30').do(setting)
-
-
 	while True:
 		schedule.run_pending()
 		time.sleep(1)
