@@ -1,4 +1,4 @@
-"""
+
 imports necessary libraries such as schedule, pandas, datetime, mariadb, telepot, selenium webdriver
 sets Telegram bot chat ID and token number
 defines a function called "crawl" which performs the following actions:
